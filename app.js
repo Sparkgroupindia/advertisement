@@ -1,8 +1,8 @@
-let DATA={};let heroIndex=0;let heroTimer;let lastHash='';const $=s=>document.querySelector(s);
+let DATA={};let heroIndex=0;let heroTimer;let lastVersion='';let pollBusy=false;const $=s=>document.querySelector(s);
 function toggleNav(){document.querySelector('#nav').classList.toggle('open')}
 function apiUrl(action='public'){return (window.VIGYAPAN_CONFIG?.API||'').trim()+'?action='+encodeURIComponent(action)}
 function jsonp(url){return new Promise((resolve,reject)=>{const cb='cb_'+Date.now()+'_'+Math.floor(Math.random()*9999);const s=document.createElement('script');const timer=setTimeout(()=>{s.remove();delete window[cb];reject(new Error('API timeout'))},12000);window[cb]=d=>{clearTimeout(timer);s.remove();delete window[cb];resolve(d)};s.onerror=()=>{clearTimeout(timer);s.remove();delete window[cb];reject(new Error('API error'))};s.src=url+'&callback='+cb;document.body.appendChild(s)})}
-async function loadData(silent=false){try{if(!window.VIGYAPAN_CONFIG?.API||window.VIGYAPAN_CONFIG.API.includes('PASTE_'))return;const d=await jsonp(apiUrl('public'));if(!d||!d.generatedAt)return;const h=JSON.stringify(d);if(h===lastHash)return;lastHash=h;const old=DATA;DATA=d;renderAll();if(!silent&&old.generatedAt)showToast('Website updated automatically');}catch(e){if(!silent)showToast('Connect your Apps Script URL in config.js')}}
+async function loadData(silent=false){if(pollBusy)return;try{if(!window.VIGYAPAN_CONFIG?.API||window.VIGYAPAN_CONFIG.API.includes('PASTE_'))return;pollBusy=true;const d=await jsonp(apiUrl('public'));if(!d||!d.version)return;if(d.version===lastVersion)return;const oldVersion=lastVersion;lastVersion=d.version;DATA=d;renderAll();if(!silent&&oldVersion)showToast('Website updated automatically');}catch(e){if(!silent)showToast('Connect your Apps Script URL in config.js')}finally{pollBusy=false}}
 function setting(k,def=''){const r=(DATA.settings||[]).find(x=>x.key===k);return r?r.value:def}
 function mediaUrl(u){if(!u)return '';if(u.startsWith('assets/'))return u;return u}
 function renderAll(){renderSettings();renderHero();renderServices();renderProducts();renderPlans();renderGallery();renderContact()}
