@@ -27,16 +27,101 @@ function editItem(key,id){const s=schemas[key], row=(DB[key]||[]).find(x=>String
 function field(f,l,t,v){if(t==='textarea')return `<div class="field full"><label>${l}</label><textarea id="f_${f}">${esc(v)}</textarea></div>`;if(t==='selectYESNO')return `<div class="field"><label>${l}</label><select id="f_${f}"><option ${String(v).toUpperCase()==='YES'?'selected':''}>YES</option><option ${String(v).toUpperCase()!=='YES'?'selected':''}>NO</option></select></div>`;if(t==='selectMedia')return `<div class="field"><label>${l}</label><select id="f_${f}"><option ${v==='image'?'selected':''}>image</option><option ${v==='video'?'selected':''}>video</option></select></div>`;return `<div class="field"><label>${l}</label><input id="f_${f}" type="${t==='number'?'number':'text'}" value="${esc(v)}"></div>`}
 function uploadUI(key){return `<div class="uploadBox" style="margin-top:15px"><b>Upload ${key==='gallery'?'multiple images/videos':'image'}</b><br><small>Files are compressed in your browser before upload.</small><input id="fileInput" type="file" ${key==='gallery'?'multiple':''} accept="${key==='gallery'?'image/*,video/*':'image/*'}" onchange="previewFiles(event,'${key}')"><div class="previewGrid" id="previewGrid"></div></div>`}
 function previewFiles(e,key){const box=$('#previewGrid');box.innerHTML='';[...e.target.files].forEach(f=>{const u=URL.createObjectURL(f);box.insertAdjacentHTML('beforeend',f.type.startsWith('video/')?`<video src="${u}" controls></video>`:`<img src="${u}">`)})}
-async function saveItem(key){const s=schemas[key], obj={id:$('#f_id').value};s.fields.forEach(([f])=>obj[f]=$('#f_'+f)?.value||'');const files=$('#fileInput')?.files;if(files&&files.length){if(key==='gallery'&&files.length>1){closeModal();return doBulkUpload(key)}for(const f of files){const name='UP_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');const url=await uploadAndGetUrl(f,name);if(key==='gallery'){obj.mediaUrl=url;obj.thumbUrl=url}else{obj.imageUrl=url}}}await post({action:'saveRows',sheet:s.sheet,rows:[obj]});await refresh('Saved — website updated automatically');closeModal();renderTab(key)}
-async function uploadAndGetUrl(file,name){const data=await compressFile(file);await post({action:'uploadMedia',fileName:name,data});for(let i=0;i<8;i++){await new Promise(r=>setTimeout(r,700));try{const d=await jsonp(api()+'?action=mediaByName&name='+encodeURIComponent(name));if(d.ok)return d.url}catch(e){}}throw Error('Upload verification failed')}
-async function bulkUpload(key){const accept=key==='hero'?'image/*':'image/*,video/*';$('#modal').innerHTML=`<div class="modalBox"><div class="modalHead"><h2>Bulk Upload ${key}</h2><button class="close" onclick="closeModal()">×</button></div><p style="font-size:11px;color:#71838f">Select multiple files. Each file becomes a separate item with a ready-to-edit title. Files are compressed before upload.</p><div class="uploadBox"><input id="bulkFiles" type="file" multiple accept="${accept}"><div class="previewGrid" id="previewGrid"></div></div><div class="saveBar"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn green" onclick="doBulkUpload('${key}')">Upload & Publish</button></div></div>`;$('#modal').classList.add('show');$('#bulkFiles').onchange=e=>previewFiles(e,key)}
-async function doBulkUpload(key){const files=[...$('#bulkFiles').files];if(!files.length)return showToast('Select files first');const sheet=schemas[key].sheet;let order=(DB[key]||[]).length+1;for(const f of files){const name='BULK_'+Date.now()+'_'+Math.random().toString(36).slice(2,7)+'_'+f.name.replace(/[^a-zA-Z0-9._-]/g,'_');showToast('Uploading '+f.name);const url=await uploadAndGetUrl(f,name);const base=f.name.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ');let obj={id:key.toUpperCase().slice(0,2)+(Date.now()%100000)+Math.floor(Math.random()*99),sort:order++,active:'YES'};if(key==='hero')Object.assign(obj,{imageUrl:url,titleSmall:'LET’S GROW YOUR BRAND TOGETHER',title1:base,title2:'Powerful Results',description:'Creative advertising solutions for your business.',button1:'Explore Services',button1Link:'#services',button2:'Get a Free Quote',button2Link:'#contact'});else Object.assign(obj,{section:f.type.startsWith('video/')?'Video Production':'New Gallery',type:f.type.startsWith('video/')?'video':'image',title:base,mediaUrl:url,thumbUrl:url});await post({action:'saveRows',sheet,rows:[obj]})}await refresh('Bulk upload complete — website updated');closeModal();renderTab(key)}
-async function removeItem(key,id){if(!confirm('Delete this item?'))return;await post({action:'deleteRow',sheet:schemas[key].sheet,id});await refresh('Deleted — website updated automatically');renderTab(key)}
-async function post(body){body.token=token;await fetch(api(),{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify(body)});return {ok:true}}
-async function refresh(msg){await new Promise(r=>setTimeout(r,900));try{DB=await jsonp(api()+'?action=public');showToast(msg)}catch(e){showToast('Saved. Reloading CMS data failed; public site will still sync.')}}
-async function compressFile(file){if(file.type.startsWith('image/'))return await compressImage(file);if(file.type.startsWith('video/'))return await compressVideo(file);return await toData(file)}
+async function saveItem(key){
+  const s=schemas[key], obj={id:$('#f_id').value};
+  s.fields.forEach(([f])=>obj[f]=$('#f_'+f)?.value||'');
+  const files=$('#fileInput')?.files;
+  if(files&&files.length){
+    if(key==='gallery'&&files.length>1){return doBulkUpload(key,files);}
+    const f=files[0];
+    setUploadStatus(f.name,'Compressing / preparing…','work');
+    const name='UP_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'_'+safeFileName(f.name);
+    const url=await uploadAndGetUrl(f,name,(m)=>setUploadStatus(f.name,m,'work'));
+    if(key==='gallery'){obj.mediaUrl=url;obj.thumbUrl=url;obj.type=f.type.startsWith('video/')?'video':'image'}else obj.imageUrl=url;
+  }
+  await post({action:'saveRows',sheet:s.sheet,rows:[obj]});
+  await refresh('Saved — website updated automatically');
+  closeModal();renderTab(key);
+}
+function safeFileName(n){return String(n||'file').replace(/[^a-zA-Z0-9._-]/g,'_')}
+function setUploadStatus(name,msg,state='work'){
+  const box=$('#uploadQueue');if(!box)return;
+  const id='uq_'+btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g,'');
+  let el=document.getElementById(id);
+  if(!el){el=document.createElement('div');el.className='uploadRow';el.id=id;box.appendChild(el)}
+  el.className='uploadRow '+state;
+  el.innerHTML=`<span class="uploadName">${esc(name)}</span><span class="uploadState">${esc(msg)}</span>`;
+}
+async function uploadAndGetUrl(file,name,onStatus){
+  const data=await prepareFile(file,onStatus);
+  onStatus&&onStatus('Uploading to Drive…');
+  await post({action:'uploadMedia',fileName:name,mimeType:(data.match(/^data:([^;]+);/)||[])[1]||file.type,data});
+  onStatus&&onStatus('Verifying upload…');
+  for(let i=0;i<12;i++){
+    await new Promise(r=>setTimeout(r,i===0?250:450));
+    try{const d=await jsonp(api()+'?action=mediaByName&name='+encodeURIComponent(name));if(d.ok){onStatus&&onStatus('Uploaded ✓','done');return d.url}}catch(e){}
+  }
+  onStatus&&onStatus('Upload failed','error');
+  throw Error('Upload verification failed: '+file.name);
+}
+async function bulkUpload(key,selectedFiles){
+  const accept=key==='hero'?'image/*':'image/*,video/*';
+  if(selectedFiles){return doBulkUpload(key,selectedFiles)}
+  $('#modal').innerHTML=`<div class="modalBox"><div class="modalHead"><h2>Bulk Upload ${key}</h2><button class="close" onclick="closeModal()">×</button></div><p class="uploadHint">Select multiple files. Upload runs in parallel for speed. Files ≤150 KB (images) or ≤500 KB (videos) are uploaded directly without compression.</p><div class="uploadBox"><input id="bulkFiles" type="file" multiple accept="${accept}"><div class="uploadQueue" id="uploadQueue"></div><div class="previewGrid" id="previewGrid"></div></div><div class="saveBar"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn green" onclick="doBulkUpload('${key}')">Upload & Publish</button></div></div>`;
+  $('#modal').classList.add('show');
+  $('#bulkFiles').onchange=e=>previewFiles(e,key);
+}
+async function doBulkUpload(key,passedFiles){
+  const input=$('#bulkFiles');
+  const files=passedFiles?[...passedFiles]:(input?[...input.files]:[]);
+  if(!files.length)return showToast('Select files first');
+  if(!$('#uploadQueue')){const box=$('#previewGrid');box.insertAdjacentHTML('beforebegin','<div class="uploadQueue" id="uploadQueue"></div>')}
+  const sheet=schemas[key].sheet;
+  let order=(DB[key]||[]).length+1;
+  const concurrency=4;
+  let cursor=0;
+  const results=new Array(files.length);
+  async function worker(){
+    while(true){
+      const i=cursor++; if(i>=files.length)return;
+      const f=files[i];
+      try{
+        setUploadStatus(f.name,'Preparing…','work');
+        const name='BULK_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,7)+'_'+safeFileName(f.name);
+        const url=await uploadAndGetUrl(f,name,m=>setUploadStatus(f.name,m,'work'));
+        results[i]={f,url};
+      }catch(e){results[i]={f,error:e.message};setUploadStatus(f.name,'Failed: '+e.message,'error')}
+    }
+  }
+  await Promise.all(Array.from({length:Math.min(concurrency,files.length)},worker));
+  const rows=[];
+  results.forEach(r=>{
+    if(!r||r.error)return;
+    const f=r.f, url=r.url;
+    const base=f.name.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ');
+    const obj={id:key.toUpperCase().slice(0,2)+(Date.now()%100000)+Math.floor(Math.random()*999),sort:order++,active:'YES'};
+    if(key==='hero')Object.assign(obj,{imageUrl:url,titleSmall:'LET’S GROW YOUR BRAND TOGETHER',title1:base,title2:'Powerful Results',description:'Creative advertising solutions for your business.',button1:'Explore Services',button1Link:'#services',button2:'Get a Free Quote',button2Link:'#contact'});
+    else Object.assign(obj,{section:f.type.startsWith('video/')?'Video Production':'New Gallery',type:f.type.startsWith('video/')?'video':'image',title:base,mediaUrl:url,thumbUrl:url});
+    rows.push(obj);
+  });
+  if(rows.length)await post({action:'saveRows',sheet,rows});
+  await refresh(`${rows.length} file${rows.length!==1?'s':''} uploaded & published`);
+  if(rows.length===files.length){setTimeout(()=>closeModal(),450);}
+  renderTab(key);
+}
+async function prepareFile(file,onStatus){
+  if(file.type.startsWith('image/')){
+    if(file.size<=150*1024){onStatus&&onStatus('Small image — direct upload ✓');return toData(file)}
+    onStatus&&onStatus('Compressing image…');return compressImage(file);
+  }
+  if(file.type.startsWith('video/')){
+    if(file.size<=500*1024){onStatus&&onStatus('Small video — direct upload ✓');return toData(file)}
+    onStatus&&onStatus('Compressing video…');return compressVideo(file);
+  }
+  return toData(file);
+}
 function toData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}
-function compressImage(file){return new Promise((resolve,reject)=>{const img=new Image();const r=new FileReader();r.onload=()=>{img.onload=()=>{const max=1400,scale=Math.min(1,max/Math.max(img.width,img.height));const c=document.createElement('canvas');c.width=Math.round(img.width*scale);c.height=Math.round(img.height*scale);const x=c.getContext('2d');x.drawImage(img,0,0,c.width,c.height);let q=.82,data=c.toDataURL('image/jpeg',q);while(data.length>850000&&q>.35){q-=.07;data=c.toDataURL('image/jpeg',q)}resolve(data)};img.src=r.result};r.onerror=reject;r.readAsDataURL(file)})}
-function compressVideo(file){return new Promise(async resolve=>{if(!('MediaRecorder' in window))return resolve(await toData(file));const v=document.createElement('video');v.src=URL.createObjectURL(file);v.muted=true;v.playsInline=true;await new Promise(r=>v.onloadedmetadata=r);const c=document.createElement('canvas');const scale=Math.min(1,640/Math.max(v.videoWidth,v.videoHeight));c.width=Math.round(v.videoWidth*scale);c.height=Math.round(v.videoHeight*scale);const ctx=c.getContext('2d');const stream=c.captureStream(15);let mime='video/webm;codecs=vp8';if(!MediaRecorder.isTypeSupported(mime))mime='video/webm';const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:250000});const chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);rec.onstop=()=>{const blob=new Blob(chunks,{type:mime});const r=new FileReader();r.onload=()=>resolve(r.result);r.readAsDataURL(blob)};rec.start();const draw=()=>{if(v.ended){rec.stop();return}ctx.drawImage(v,0,0,c.width,c.height);requestAnimationFrame(draw)};v.play();draw()})}
+function compressImage(file){return new Promise((resolve,reject)=>{const img=new Image();const r=new FileReader();r.onload=()=>{img.onload=()=>{let max=Math.min(1600,Math.max(img.width,img.height));let scale=Math.min(1,max/Math.max(img.width,img.height));let q=.78,data='';for(let pass=0;pass<5;pass++){const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));const x=c.getContext('2d',{alpha:false});x.drawImage(img,0,0,c.width,c.height);data=c.toDataURL('image/jpeg',q);if((data.length*0.75)<=150*1024)break;q=Math.max(.38,q-.10);scale*=.82}resolve(data)};img.onerror=reject;img.src=r.result};r.onerror=reject;r.readAsDataURL(file)})}
+function compressVideo(file){return new Promise(async resolve=>{if(!('MediaRecorder' in window)){resolve(await toData(file));return}const v=document.createElement('video');v.src=URL.createObjectURL(file);v.muted=true;v.playsInline=true;await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=rej});const duration=Math.max(1,v.duration||1);const c=document.createElement('canvas');const scale=Math.min(1,640/Math.max(v.videoWidth,v.videoHeight));c.width=Math.max(1,Math.round(v.videoWidth*scale));c.height=Math.max(1,Math.round(v.videoHeight*scale));const ctx=c.getContext('2d');const stream=c.captureStream(15);let mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8')?'video/webm;codecs=vp8':'video/webm';const targetBits=Math.max(70000,Math.min(180000,(450*1024*8/duration)));const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:targetBits});const chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);rec.onstop=()=>{const blob=new Blob(chunks,{type:mime});const r=new FileReader();r.onload=()=>resolve(r.result);r.readAsDataURL(blob)};rec.start(500);const draw=()=>{if(v.ended){rec.stop();return}ctx.drawImage(v,0,0,c.width,c.height);requestAnimationFrame(draw)};v.play();draw()})}
 function closeModal(){$('#modal').classList.remove('show');$('#modal').innerHTML=''}
 if(token)start();
