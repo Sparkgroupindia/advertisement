@@ -1,43 +1,45 @@
-# VIGYAPAN Advertisement CMS
+# VIGYAPAN Professional Website CMS
 
-## Updated setup
-This package fixes the CMS upload/login/live-update flow.
+## Architecture
+- GitHub Pages: public website + admin panel on the SAME domain
+- `index.html`: public website
+- `admin.html`: admin panel
+- Google Apps Script: API/CMS
+- Google Sheet: content database
+- Google Drive: uploaded media
 
-### 1. GitHub
-Upload/replace these files in the existing repository:
-- `index.html`
-- `style.css`
-- `app.js`
-- `config.js`
-- `admin.html`
-- `admin.css`
-- `admin.js`
+## Setup
+1. Create a new blank Google Sheet.
+2. Extensions > Apps Script.
+3. Paste `Code.gs`.
+4. Run `setupVigyapan()` once and approve permissions.
+5. Deploy > New deployment > Web app.
+   - Execute as: Me
+   - Who has access: Anyone
+6. Copy the `/exec` URL.
+7. Open `config.js` and replace:
+   PASTE_APPS_SCRIPT_EXEC_URL_HERE
+   with your `/exec` URL.
+8. Upload all files/folders to a GitHub repository.
+9. Enable GitHub Pages from the repository's main branch/root.
 
-Keep any existing repository asset files/folders as they are.
+## Same GitHub link
+Public:
+https://YOUR-USERNAME.github.io/YOUR-REPO/
 
-### 2. Google Apps Script
-Open the Apps Script project connected to **VIGYAPAN Website CMS** and replace the complete contents of `Code.gs` with the `Code.gs` from this ZIP.
+Admin:
+https://YOUR-USERNAME.github.io/YOUR-REPO/admin.html
 
-Then create a **new Web App deployment version**:
-- Execute as: **Me**
-- Who has access: **Anyone**
-- Deploy a new version
-- Copy the new `/exec` URL into `config.js` if the URL changes.
+## First admin password
+admin123
 
-Do not create a second spreadsheet. The existing sheet/data is used.
+Change it from Admin > Site Settings after login.
 
-### 3. Upload behavior
-- Images are compressed in the browser before upload (target around 120 KB, with a safe API payload limit).
-- Videos are converted to compact WebM in Chrome/Edge when the browser supports MediaRecorder.
-- Uploaded files are stored in the existing `VIGYAPAN_MEDIA` Drive folder.
-- Admin waits for a verified server result, then saves the media URL into the Sheet.
-- Public website checks for CMS version changes every **5 seconds**.
-- Public website also uses a browser cache so repeat visits render existing content immediately while fresh data loads in the background.
+## Live updates
+The public website polls the Google Apps Script API every 5 seconds. When you save from Admin, the public page picks up the change automatically without a manual refresh.
 
-### 4. Admin login
-Wrong password stays on the login page and shows a visible error. A valid session is required before the dashboard is displayed.
+## Media
+Images are resized/compressed in the browser before upload. Video compression uses MediaRecorder/WebM when the browser supports it. Actual final video size depends on duration, motion and browser codec support.
 
-Default password on a fresh setup: `admin123`.
-
-### 5. Important
-After changing `Code.gs`, the old Apps Script deployment will continue using the old backend until a new deployment/version is deployed. The GitHub files alone cannot update the Apps Script backend.
+## Important
+Keep the Apps Script URL only in `config.js`. Do not put your Google Sheet ID or Drive folder ID in the public HTML.
