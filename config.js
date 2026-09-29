@@ -1,1 +1,4 @@
-window.VIGYAPAN_CONFIG={API:'https://script.google.com/macros/s/AKfycbyFnSa03P7jPUZifkE-jNtUtjwdLbSUu_on3mUnWsvq5pxZMMcQ1sbGxDA95tQ0m0D7/exec',POLL_MS:5000};
+window.VIGYAPAN_CONFIG={
+  API:'https://script.google.com/macros/s/AKfycbyFnSa03P7jPUZifkE-jNtUtjwdLbSUu_on3mUnWsvq5pxZMMcQ1sbGxDA95tQ0m0D7/exec',
+  POLL_MS:5000
+};
