@@ -1,23 +1,43 @@
-VIGYAPAN CMS FINAL
+# VIGYAPAN — Full Professional Website + CMS
 
-1. Paste Code.gs into the bound Google Sheet Apps Script and deploy as Web App (Execute as Me / Anyone).
-2. Put the /exec URL in config.js.
-3. Upload all files except Code.gs to GitHub Pages. assets/ may be kept for the included demo content.
-4. Run setupVigyapan() only once on a fresh sheet. Existing data is preserved.
+## Files
+- `index.html` — public website
+- `admin.html` — admin panel on the same GitHub Pages domain
+- `app.js`, `style.css` — public website
+- `admin.js`, `admin.css` — CMS
+- `config.js` — Apps Script `/exec` URL
+- `Code.gs` — Google Apps Script backend (paste into Apps Script only)
+- `assets/` — ready demo media; replace everything from Admin after setup if desired
 
-Admin: /admin.html
-Default password: admin123
+## Setup
+1. Open the Google Sheet used for the CMS.
+2. Extensions → Apps Script.
+3. Replace the complete `Code.gs` with the `Code.gs` in this ZIP.
+4. Run `setupVigyapan()` once and approve permissions.
+5. Deploy → New deployment → Web app → Execute as Me → Anyone.
+6. Keep the `/exec` URL in `config.js`.
+7. Upload all GitHub files/folders except `Code.gs`.
+8. Enable GitHub Pages.
 
-Important: after changing Code.gs, Deploy > Manage deployments > Edit > New version > Deploy.
+## URLs
+Public: `https://YOUR-USER.github.io/YOUR-REPO/`
+Admin: `https://YOUR-USER.github.io/YOUR-REPO/admin.html`
 
-Changes in this version:
-- Added working POST transport for save/upload/delete operations.
-- Added logo upload and logoUrl setting.
-- Gallery is grouped into customer-facing folders by Section.
-- Folder opens into a carousel viewer with image zoom and video playback.
-- Gallery bulk upload asks for folder/section and uploads up to 4 files in parallel.
-- Image <=150 KB and video <=500 KB bypass compression.
-- Larger media is compressed in the browser before upload.
-- Live per-file upload status is shown in the same upload panel.
-- Public site polls only the version every 5 seconds and renders only when changed.
-- Login and CMS loading are non-blocking after authentication.
+## Admin login
+First setup password: `admin123`.
+The admin token is kept only in page memory. Refreshing `admin.html` returns to the login page.
+
+## Media
+- Images <= 150 KB: direct upload, no compression.
+- Images > 150 KB: browser compression before upload.
+- Videos <= 500 KB: direct upload, no compression.
+- Videos > 500 KB: browser WebM compression when supported.
+- Up to 4 media files upload in parallel.
+- Each file shows Preparing / Compressing / Uploading / Uploaded / Failed status.
+- Gallery uploads are stored in Drive subfolders by gallery section.
+
+## Gallery
+Admin Gallery / Video is folder based. Create a folder name and upload multiple images/videos. Public visitors see equal-size folder cards. Clicking a folder opens a viewer with previous/next navigation, image zoom and video controls.
+
+## Live update
+The public website checks the CMS version every 5 seconds. It only downloads the full CMS data when the version changes. A built-in fallback demo keeps the public page visible immediately even if the API is slow or temporarily unavailable.
