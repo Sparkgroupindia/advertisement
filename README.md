@@ -1,50 +1,10 @@
-# VIGYAPAN Professional Website CMS — Master Edition
+VIGYAPAN Advertisement MASTER CMS
 
-## Architecture
-- GitHub Pages: public website + admin panel on the same domain
-- `index.html`: public website
-- `admin.html`: master admin panel
-- Google Apps Script: API/CMS
-- Google Sheet: content database
-- Google Drive: uploaded media
+1. Replace Code.gs in the bound Apps Script project.
+2. Run setupVigyapan() once. It creates/updates CMS sheets without deleting existing rows.
+3. Deploy as Web App: Execute as Me, Who has access: Anyone.
+4. Keep the /exec URL in config.js.
+5. Replace GitHub Pages files with this package, including assets/.
+6. Open admin.html and login. Default password on a fresh setup: admin123.
 
-## Main improvements
-- Reliable admin save/delete/upload flow using Apps Script POST without browser preflight problems.
-- Logo upload from Admin > Brand & Settings; logo appears in public header and footer.
-- Google Maps embed URL controlled from Admin > Brand & Settings.
-- Testimonials are now CMS-managed through a `TESTIMONIALS` sheet.
-- Gallery image/video filters and lightbox navigation.
-- Clickable service cards with detail modal + WhatsApp enquiry.
-- Floating WhatsApp button and improved contact controls.
-- Responsive mobile-first public website and redesigned master admin dashboard.
-- Existing HERO, SERVICES, PRODUCTS, PLANS and GALLERY sheets remain compatible.
-- Existing content is preserved; setup adds missing CMS structures instead of replacing rows.
-
-## One-time Apps Script update
-1. Open the Google Apps Script project connected to the CMS Sheet.
-2. Replace `Code.gs` with this package's `Code.gs`.
-3. Save.
-4. Run `setupVigyapan()` once from the Apps Script editor.
-5. Approve permissions if Google asks.
-6. Deploy > Manage deployments > Edit the existing Web App deployment.
-7. Keep Execute as: Me, and Who has access: Anyone.
-8. Deploy the new version.
-9. Keep the same `/exec` URL in `config.js` unless Google generated a new deployment URL.
-
-## GitHub Pages update
-Upload/replace these files in the existing `advertisement` repository:
-- `index.html`
-- `app.js`
-- `style.css`
-- `admin.html`
-- `admin.js`
-- `admin.css`
-- `config.js`
-
-Do not remove the existing `assets` folder or other repository files if they are present.
-
-## Admin
-Open:
-`https://sparkgroupindia.github.io/advertisement/admin.html`
-
-First setup default password remains `admin123` only if the Sheet is being initialized for the first time. Change it from Admin > Brand & Settings after login.
+Important: this version uploads compressed media through authenticated GET/JSONP so GitHub Pages does not depend on cross-origin POST response handling. Uploaded media URLs are saved into the relevant CMS row/settings immediately.
