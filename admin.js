@@ -1,44 +1,276 @@
-let token='';let DB={};let currentTab='dashboard';let busy=false;const $=s=>document.querySelector(s);const api=()=>String(window.VIGYAPAN_CONFIG?.API||'').trim();
-const esc=s=>String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;');
-function toast(t,type=''){const e=$('#toast');e.className='toast '+type;e.textContent=t;e.style.display='block';clearTimeout(window._toast);window._toast=setTimeout(()=>e.style.display='none',2600)}
-function jsonp(url,timeout=15000){return new Promise((resolve,reject)=>{const cb='v_'+Date.now()+'_'+Math.random().toString(36).slice(2);const s=document.createElement('script');const timer=setTimeout(()=>{s.remove();delete window[cb];reject(Error('Request timeout'))},timeout);window[cb]=d=>{clearTimeout(timer);s.remove();delete window[cb];resolve(d)};s.onerror=()=>{clearTimeout(timer);s.remove();delete window[cb];reject(Error('API error'))};s.src=url+(url.includes('?')?'&':'?')+'callback='+cb;document.body.appendChild(s)})}
-async function post(body){if(!token)throw Error('Login required');const res=await fetch(api(),{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({...body,token})});return{ok:true,opaque:res.type==='opaque'}}
-async function login(){if(busy)return;const pass=$('#password').value.trim();if(!pass)return toast('Enter password','error');busy=true;const b=$('#loginBtn');b.disabled=true;b.innerHTML='Signing in…';try{const d=await jsonp(api()+'?action=login&password='+encodeURIComponent(pass));if(!d.ok){toast(d.error||'Invalid password','error');return}token=d.token;await start(true)}catch(e){toast('Unable to connect to CMS','error')}finally{busy=false;b.disabled=false;b.innerHTML='Login <span>→</span>'}}
-function logout(){token='';location.replace('admin.html')}
-async function start(fromLogin=false){if(!token)return;try{const d=await jsonp(api()+'?action=authCheck&token='+encodeURIComponent(token));if(!d.ok){token='';return}$('#login').classList.add('hidden');$('#app').classList.remove('hidden');await load();bindTabs();renderTab(currentTab);if(fromLogin)toast('Welcome back') }catch(e){token='';$('#login').classList.remove('hidden');$('#app').classList.add('hidden');toast('Session expired. Please login again.','error')}}
-async function load(){const d=await jsonp(api()+'?action=public');if(!d||!d.version)throw Error('Invalid CMS response');DB=d}
-function bindTabs(){document.querySelectorAll('.tab').forEach(b=>{b.onclick=()=>{currentTab=b.dataset.tab;document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderTab(currentTab);if(innerWidth<800)$('#side').classList.remove('open')}})}
-function toggleSide(){$('#side').classList.toggle('open')}
-function renderTab(tab){const c=$('#content');if(tab==='dashboard')c.innerHTML=dashboard();else if(tab==='settings')c.innerHTML=settings();else if(tab==='hero')c.innerHTML=crud('HERO','Hero Slider','hero');else if(tab==='services')c.innerHTML=crud('SERVICES','Services','services');else if(tab==='products')c.innerHTML=crud('PRODUCTS','Products','products');else if(tab==='plans')c.innerHTML=crud('PLANS','Plans','plans');else if(tab==='gallery')c.innerHTML=galleryManager()}
-function dashboard(){return `<div class="pageHead"><div><div class="eyebrow">CONTROL CENTER</div><h1>Dashboard</h1><p>Manage your complete VIGYAPAN website from one place.</p></div><a class="btn gold" href="index.html" target="_blank">Open Website ↗</a></div><div class="stats"><div class="stat"><span>HERO SLIDES</span><b>${DB.hero?.length||0}</b></div><div class="stat"><span>SERVICES</span><b>${DB.services?.length||0}</b></div><div class="stat"><span>PRODUCTS</span><b>${DB.products?.length||0}</b></div><div class="stat"><span>GALLERY MEDIA</span><b>${DB.gallery?.length||0}</b></div></div><div class="dashboardGrid"><div class="panel"><h3>Live Website</h3><p>Every successful save updates the CMS version. The public website checks for changes every 5 seconds and refreshes its content without a manual page refresh.</p><div class="live"><i></i> Connected CMS</div></div><div class="panel"><h3>Quick Actions</h3><div class="quick"><button onclick="editItem('services','')">+ Service</button><button onclick="editItem('products','')">+ Product</button><button onclick="bulkUpload('hero')">+ Hero Images</button><button onclick="openGalleryUpload('')">+ Gallery Folder</button></div></div></div>`}
-const schemas={hero:{sheet:'HERO',fields:[['imageUrl','Image / uploaded file','text'],['titleSmall','Small Heading','text'],['title1','Main Heading 1','text'],['title2','Main Heading 2','text'],['description','Description','textarea'],['button1','Button 1','text'],['button1Link','Button 1 Link','text'],['button2','Button 2','text'],['button2Link','Button 2 Link','text'],['sort','Order','number'],['active','Active','yesno']]},services:{sheet:'SERVICES',fields:[['icon','Icon / Emoji','text'],['name','Service Name','text'],['description','Description','text'],['sort','Order','number'],['active','Active','yesno']]},products:{sheet:'PRODUCTS',fields:[['name','Product Name','text'],['price','Price','text'],['imageUrl','Image / uploaded file','text'],['shortDescription','Short Description','text'],['description','Full Description','textarea'],['features','Features (use | between items)','textarea'],['category','Category','text'],['sort','Order','number'],['active','Active','yesno']]},plans:{sheet:'PLANS',fields:[['name','Plan Name','text'],['tagline','Tagline','text'],['price','Price','text'],['period','Period','text'],['color','Color','text'],['features','Features (use | between items)','textarea'],['sort','Order','number'],['active','Active','yesno'],['buttonText','Button Text','text'],['buttonLink','Button Link','text']]}};
-function setting(k){const x=(DB.settings||[]).find(r=>r.key===k);return x?x.value:''}
-function settings(){const keys=['siteName','siteTagline','phone','email','address','whatsapp','facebook','instagram','youtube','linkedin','heroInterval','aboutEyebrow','aboutTitle','aboutText','galleryTitle','gallerySubtitle','productsTitle','servicesTitle','plansTitle','contactTitle','contactSubtitle','footerText'];return `<div class="pageHead"><div><div class="eyebrow">WEBSITE CONTROL</div><h1>Site Settings</h1><p>All global website text, links and branding.</p></div></div><div class="panel logoPanel"><div><h3>Website Logo</h3><p>Upload your real logo. It will appear in the public header and footer.</p><div class="logoPreview">${setting('logoUrl')?`<img src="${esc(setting('logoUrl'))}">`:'<span>No logo uploaded</span>'}</div></div><div class="logoUpload"><input id="logoFile" type="file" accept="image/*"><button class="btn gold" onclick="uploadLogo()">Upload Logo</button><div id="logoStatus" class="statusLine"></div></div></div><div class="panel"><div class="formGrid">${keys.map(k=>`<div class="field"><label>${k}</label><input id="set_${k}" value="${esc(setting(k))}"></div>`).join('')}</div><div class="saveBar"><button class="btn green" onclick="saveSettings()">Save & Publish</button></div></div><div class="panel"><h3>Admin Password</h3><div class="row"><input id="newPass" type="password" placeholder="Minimum 6 characters"><button class="btn" onclick="changePassword()">Change Password</button></div></div>`}
-async function uploadLogo(){const f=$('#logoFile')?.files?.[0];if(!f)return toast('Choose a logo first','error');const st=$('#logoStatus');st.textContent='Uploading…';try{const data=await prepareFile(f,m=>st.textContent=m);const name='LOGO_'+Date.now()+'_'+safeName(f.name);await post({action:'uploadMedia',fileName:name,mimeType:f.type,data,section:'Branding'});const d=await waitForMedia(name);if(!d.ok)throw Error('Upload verification failed');const prev=DB.version;await post({action:'saveSettings',items:[{key:'logoUrl',value:d.url}]});await waitForVersion(prev);await refreshDB();st.textContent='Uploaded ✓';toast('Logo uploaded and published');renderTab('settings')}catch(e){st.textContent='Failed: '+e.message;toast(e.message,'error')}}
-async function saveSettings(){const items=[...document.querySelectorAll('[id^="set_"]')].map(e=>({key:e.id.slice(4),value:e.value}));try{const prev=DB.version;await post({action:'saveSettings',items});await waitForVersion(prev);await refreshDB();toast('Settings saved — website updated');renderTab('settings')}catch(e){toast(e.message,'error')}}
-async function changePassword(){const p=$('#newPass').value;if(!p||p.length<6)return toast('Minimum 6 characters','error');try{await post({action:'changePassword',newPassword:p});$('#newPass').value='';toast('Password changed successfully')}catch(e){toast(e.message,'error')}}
-function crud(type,title,key){const rows=(DB[key]||[]).slice().sort((a,b)=>(+a.sort||0)-(+b.sort||0));return `<div class="pageHead"><div><div class="eyebrow">CONTENT MANAGEMENT</div><h1>${title}</h1><p>Add, edit, delete and reorder content.</p></div><div class="headActions"><button class="btn gold" onclick="editItem('${key}','')">+ Add New</button>${key==='hero'?'<button class="btn" onclick="bulkUpload(\'hero\')">⇧ Bulk Upload</button>':''}</div></div><div class="panel"><div class="list">${rows.length?rows.map(x=>itemRow(key,x)).join(''):'<div class="empty">No items yet.</div>'}</div></div>`}
-function itemRow(key,x){const image=x.imageUrl||'';return `<div class="item"><div>${image?`<img class="thumb" src="${esc(image)}" loading="lazy">`:'<div class="thumb emptyThumb">✦</div>'}</div><div><h4>${esc(x.name||x.title||'Untitled')}</h4><p>${esc(x.price||x.description||x.shortDescription||'')}</p></div><div class="itemActions"><button class="iconBtn" onclick="editItem('${key}','${esc(x.id)}')">Edit</button><button class="iconBtn danger" onclick="removeItem('${key}','${esc(x.id)}')">Delete</button></div></div>`}
-function field(f,l,t,v){if(t==='textarea')return `<div class="field full"><label>${l}</label><textarea id="f_${f}">${esc(v)}</textarea></div>`;if(t==='yesno')return `<div class="field"><label>${l}</label><select id="f_${f}"><option ${String(v).toUpperCase()==='YES'?'selected':''}>YES</option><option ${String(v).toUpperCase()!=='YES'?'selected':''}>NO</option></select></div>`;return `<div class="field"><label>${l}</label><input id="f_${f}" type="${t==='number'?'number':'text'}" value="${esc(v)}"></div>`}
-function editItem(key,id){const s=schemas[key];const row=(DB[key]||[]).find(x=>String(x.id)===String(id))||{id:key.toUpperCase().slice(0,2)+(Date.now()%100000)};$('#modal').innerHTML=`<div class="modalBox"><div class="modalHead"><div><div class="eyebrow">EDITOR</div><h2>${id?'Edit':'Add'} ${key}</h2></div><button class="close" onclick="closeModal()">×</button></div><input type="hidden" id="f_id" value="${esc(row.id)}"><div class="formGrid">${s.fields.map(([f,l,t])=>field(f,l,t,row[f]??'')).join('')}</div>${key==='hero'||key==='products'?singleUploadUI(key):''}<div class="saveBar"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn green" onclick="saveItem('${key}')">Save & Publish</button></div></div>`;$('#modal').classList.add('show')}
-function singleUploadUI(key){return `<div class="uploadBox"><b>Upload Image</b><input id="fileInput" type="file" accept="image/*"><div class="uploadQueue" id="uploadQueue"></div></div>`}
-async function saveItem(key){const s=schemas[key],obj={id:$('#f_id').value};s.fields.forEach(([f])=>obj[f]=$('#f_'+f)?.value||'');const f=$('#fileInput')?.files?.[0];try{if(f){const name='MEDIA_'+Date.now()+'_'+safeName(f.name);setStatus(f.name,'Preparing…','work');const data=await prepareFile(f,m=>setStatus(f.name,m,'work'));await post({action:'uploadMedia',fileName:name,mimeType:f.type,data,section:key});const d=await waitForMedia(name);if(!d.ok)throw Error('Upload verification failed');obj.imageUrl=d.url;setStatus(f.name,'Uploaded ✓','done')}const prev=DB.version;await post({action:'saveRows',sheet:s.sheet,rows:[obj]});await waitForVersion(prev);await refreshDB();closeModal();renderTab(key);toast('Saved & published')}catch(e){toast(e.message,'error')}}
-function galleryManager(){const rows=(DB.gallery||[]).slice().sort((a,b)=>(+a.sort||0)-(+b.sort||0));const groups={};rows.forEach(x=>(groups[x.section||'General']??=[]).push(x));const cards=Object.keys(groups).map(section=>{const items=groups[section],first=items[0],thumb=first.thumbUrl||first.mediaUrl;return `<div class="folderCard"><div class="folderThumb">${first.type==='video'?`<video src="${esc(first.mediaUrl)}" muted preload="metadata"></video><span class="videoBadge">▶ VIDEO</span>`:`<img src="${esc(thumb)}" loading="lazy">`}<span class="countBadge">${items.length} item${items.length!==1?'s':''}</span></div><div class="folderBody"><div><h3>${esc(section)}</h3><p>${items.filter(x=>x.type==='image').length} photos · ${items.filter(x=>x.type==='video').length} videos</p></div><div class="folderBtns"><button class="btn gold" onclick="openGalleryUpload('${esc(section)}')">+ Upload</button><button class="iconBtn" onclick="openFolder('${esc(section)}')">Open Folder</button></div></div></div>`}).join('');return `<div class="pageHead"><div><div class="eyebrow">MEDIA LIBRARY</div><h1>Gallery / Video</h1><p>Organize photos and videos into customer-facing folders.</p></div><button class="btn gold" onclick="openGalleryUpload('')">+ New Folder & Upload</button></div><div class="folderGrid">${cards||'<div class="panel empty">No gallery folders yet.</div>'}</div>`}
-function openGalleryUpload(section){$('#modal').innerHTML=`<div class="modalBox"><div class="modalHead"><div><div class="eyebrow">MEDIA UPLOAD</div><h2>${section?'Add to':'Create'} Gallery Folder</h2></div><button class="close" onclick="closeModal()">×</button></div><div class="formGrid"><div class="field full"><label>Folder / Section Name</label><input id="gallerySection" value="${esc(section)}" placeholder="e.g. Business Cards"></div><div class="field full"><label>Photos & Videos</label><input id="galleryFiles" type="file" multiple accept="image/*,video/*" onchange="previewGalleryFiles(event)"></div></div><div id="galleryPreview" class="previewGrid"></div><div id="uploadQueue" class="uploadQueue"></div><div class="saveBar"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn green" onclick="uploadGalleryBatch()">Upload & Publish</button></div></div>`;$('#modal').classList.add('show')}
-function previewGalleryFiles(e){const b=$('#galleryPreview');b.innerHTML='';[...e.target.files].forEach(f=>{const u=URL.createObjectURL(f);b.insertAdjacentHTML('beforeend',f.type.startsWith('video/')?`<video src="${u}" muted controls></video>`:`<img src="${u}">`)})}
-async function uploadGalleryBatch(){const section=$('#gallerySection').value.trim();const files=[...($('#galleryFiles')?.files||[])];if(!section)return toast('Enter folder name','error');if(!files.length)return toast('Choose files','error');const queue=$('#uploadQueue');queue.innerHTML='';const concurrency=4;let cursor=0;const results=[];async function worker(){while(true){const i=cursor++;if(i>=files.length)return;const f=files[i];try{setStatus(f.name,'Preparing…','work');const name='GALLERY_'+Date.now()+'_'+i+'_'+safeName(f.name);const data=await prepareFile(f,m=>setStatus(f.name,m,'work'));await post({action:'uploadMedia',fileName:name,mimeType:f.type,data,section});const d=await waitForMedia(name);if(!d.ok)throw Error('Verification failed');setStatus(f.name,'Uploaded ✓','done');results[i]={f,d}}catch(e){setStatus(f.name,'Failed: '+e.message,'error');results[i]={f,error:e.message}}}}await Promise.all(Array.from({length:Math.min(concurrency,files.length)},worker));const base=(DB.gallery||[]).length;const rows=[];results.forEach((r,i)=>{if(!r||r.error)return;const f=r.f,d=r.d;const title=f.name.replace(/\.[^.]+$/,'').replace(/[_-]+/g,' ');rows.push({id:'G'+Date.now()+i+Math.floor(Math.random()*99),section,type:f.type.startsWith('video/')?'video':'image',title,mediaUrl:d.url,thumbUrl:d.url,sort:base+i+1,active:'YES'})});if(rows.length){const prev=DB.version;await post({action:'saveRows',sheet:'GALLERY',rows});await waitForVersion(prev)}await refreshDB();if(rows.length===files.length){toast(`${rows.length} files uploaded ✓`);setTimeout(closeModal,500)}else toast(`${rows.length} uploaded, ${files.length-rows.length} failed`,'error');renderTab('gallery')}
-function openFolder(section){const items=(DB.gallery||[]).filter(x=>String(x.section||'General')===String(section)).sort((a,b)=>(+a.sort||0)-(+b.sort||0));let index=0;$('#modal').innerHTML=`<div class="modalBox viewerModal"><div class="modalHead"><div><div class="eyebrow">${esc(section)}</div><h2>${items.length} Media Items</h2></div><button class="close" onclick="closeModal()">×</button></div><div class="adminViewer"><button onclick="viewerMove(-1)">‹</button><div id="adminViewerMedia"></div><button onclick="viewerMove(1)">›</button></div><div id="adminViewerCaption" class="viewerCaption"></div></div>`;window._viewer={items,index};$('#modal').classList.add('show');renderAdminViewer()}
-function renderAdminViewer(){const v=window._viewer;if(!v)return;const x=v.items[v.index];$('#adminViewerMedia').innerHTML=x.type==='video'?`<video src="${esc(x.mediaUrl)}" controls autoplay></video>`:`<img src="${esc(x.mediaUrl)}" onclick="this.classList.toggle('zoomed')">`;$(' #adminViewerCaption')?.remove;const c=$('#adminViewerCaption');if(c)c.textContent=`${v.index+1} / ${v.items.length} — ${x.title||''}`}
-function viewerMove(n){const v=window._viewer;if(!v)return;v.index=(v.index+n+v.items.length)%v.items.length;renderAdminViewer()}
-async function removeItem(key,id){if(!confirm('Delete this item?'))return;try{toast('Deleting…');const prev=DB.version;await post({action:'deleteRow',sheet:schemas[key]?.sheet||'GALLERY',id});await waitForVersion(prev);await refreshDB();renderTab(key);toast('Deleted ✓')}catch(e){toast(e.message,'error')}}
-async function refreshDB(){const d=await jsonp(api()+'?action=public');DB=d}
-function safeName(n){return String(n||'file').replace(/[^a-zA-Z0-9._-]/g,'_')}
-function setStatus(name,msg,state='work'){const box=$('#uploadQueue');if(!box)return;const id='u_'+btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g,'');let e=document.getElementById(id);if(!e){e=document.createElement('div');e.id=id;e.className='uploadRow';box.appendChild(e)}e.className='uploadRow '+state;e.innerHTML=`<span>${esc(name)}</span><b>${esc(msg)}</b>`}
-async function waitForMedia(name){for(let i=0;i<20;i++){try{const d=await jsonp(api()+'?action=mediaByName&name='+encodeURIComponent(name),10000);if(d&&d.ok)return d}catch(e){}await new Promise(r=>setTimeout(r,350))}return{ok:false}}
-async function waitForVersion(prev){for(let i=0;i<16;i++){try{const d=await jsonp(api()+'?action=version',8000);if(d&&String(d.version)!==String(prev))return d.version}catch(e){}await new Promise(r=>setTimeout(r,350))}return prev}
+let token=localStorage.getItem('vigyapan_admin_token')||'';
+let DB={};
+const $=s=>document.querySelector(s);
+const api=()=>String(window.VIGYAPAN_CONFIG?.API||'').trim();
+
+function esc(s=''){return String(s??'').replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/'/g,'&#39;')}
+function showToast(t,type=''){const e=$('#toast');e.textContent=t;e.className=type?type:'';e.style.display='block';clearTimeout(window.__toast);window.__toast=setTimeout(()=>e.style.display='none',2800)}
+function jsonp(url){
+  return new Promise((resolve,reject)=>{
+    const cb='a_'+Date.now()+Math.random().toString(16).slice(2);
+    const s=document.createElement('script');
+    const to=setTimeout(()=>{s.remove();delete window[cb];reject(Error('Request timeout'))},15000);
+    window[cb]=d=>{clearTimeout(to);s.remove();delete window[cb];resolve(d)};
+    s.onerror=()=>{clearTimeout(to);s.remove();delete window[cb];reject(Error('API error'))};
+    s.src=url+(url.includes('?')?'&':'?')+'callback='+cb;
+    document.body.appendChild(s);
+  })
+}
+async function post(body){
+  if(!api())throw Error('Apps Script URL missing');
+  const payload=JSON.stringify({...body,token});
+  // text/plain avoids browser CORS preflight with Google Apps Script.
+  await fetch(api(),{method:'POST',mode:'no-cors',headers:{'Content-Type':'text/plain;charset=utf-8'},body:payload});
+  await new Promise(r=>setTimeout(r,700));
+  return {ok:true};
+}
+async function login(){
+  try{
+    const p=$('#password').value;
+    if(!p)return showToast('Enter admin password');
+    const d=await jsonp(api()+'?action=login&password='+encodeURIComponent(p));
+    if(!d.ok)return showToast(d.error||'Invalid password','error');
+    token=d.token;localStorage.setItem('vigyapan_admin_token',token);start();
+  }catch(e){showToast('Apps Script connection failed','error')}
+}
+function logout(){localStorage.removeItem('vigyapan_admin_token');token='';location.reload()}
+async function start(){
+  if(!token)return;
+  try{
+    const d=await jsonp(api()+'?action=authCheck&token='+encodeURIComponent(token));
+    if(!d.ok)throw Error('Session expired');
+    $('#login').classList.add('hidden');$('#app').classList.remove('hidden');
+    await load();bindTabs();renderDashboard();
+  }catch(e){
+    localStorage.removeItem('vigyapan_admin_token');token='';
+    showToast('Session expired. Please login again','error');
+  }
+}
+async function load(){const d=await jsonp(api()+'?action=public');if(!d||!d.version)throw Error('CMS data unavailable');DB=d}
+async function refresh(msg){
+  try{await new Promise(r=>setTimeout(r,650));await load();if(msg)showToast(msg)}
+  catch(e){showToast('Saved, but refresh failed. Reload CMS once.','error')}
+}
+function bindTabs(){
+  document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active');renderTab(b.dataset.tab);
+    if(innerWidth<800)toggleSide();
+  });
+}
+function toggleSide(){document.querySelector('aside').classList.toggle('open')}
+function renderDashboard(){
+  const activeCount=k=>(DB[k]||[]).filter(x=>String(x.active).toUpperCase()==='YES').length;
+  $('#content').innerHTML=`<div class="pageHead"><div><div class="eyebrow">MASTER CONTROL</div><h1>Website Dashboard</h1><p>Manage every public section, media file and setting from one place.</p></div><div class="headActions"><a class="btn gold" href="index.html" target="_blank">View Live Website ↗</a></div></div>
+  <div class="welcome panel"><div><b>VIGYAPAN CMS</b><span>Live website control center</span></div><div class="liveDot"><i></i> CMS Connected</div></div>
+  <div class="stats">
+    <div class="stat"><span>HERO</span><b>${activeCount('hero')}</b><small>active slides</small></div>
+    <div class="stat"><span>SERVICES</span><b>${activeCount('services')}</b><small>visible services</small></div>
+    <div class="stat"><span>PRODUCTS</span><b>${activeCount('products')}</b><small>visible products</small></div>
+    <div class="stat"><span>PLANS</span><b>${activeCount('plans')}</b><small>published plans</small></div>
+    <div class="stat"><span>GALLERY</span><b>${activeCount('gallery')}</b><small>published media</small></div>
+    <div class="stat"><span>TESTIMONIALS</span><b>${activeCount('testimonials')}</b><small>published reviews</small></div>
+  </div>
+  <div class="quickGrid">
+    <button onclick="goTab('settings')"><strong>⚙</strong><span>Brand & Settings</span><small>Logo, contact, map, socials</small></button>
+    <button onclick="goTab('hero')"><strong>▣</strong><span>Hero Manager</span><small>Slides, text & buttons</small></button>
+    <button onclick="goTab('gallery')"><strong>▧</strong><span>Media Gallery</span><small>Images & videos</small></button>
+    <button onclick="goTab('testimonials')"><strong>★</strong><span>Testimonials</span><small>Customer reviews</small></button>
+  </div>
+  <div class="panel livePanel"><div><h3>Live publishing</h3><p>Changes are saved to Google Sheets/Drive and the public website checks for updates automatically.</p></div><span class="version">Version ${esc(DB.version)}</span></div>`;
+}
+function goTab(k){document.querySelector(`.tab[data-tab="${k}"]`)?.click()}
+function renderTab(tab){
+  const c=$('#content');
+  if(tab==='dashboard')return renderDashboard();
+  if(tab==='settings')c.innerHTML=settings();
+  else if(tab==='hero')c.innerHTML=crud('HERO','Hero Slider','hero');
+  else if(tab==='services')c.innerHTML=crud('SERVICES','Services','services');
+  else if(tab==='products')c.innerHTML=crud('PRODUCTS','Products','products');
+  else if(tab==='plans')c.innerHTML=crud('PLANS','Plans','plans');
+  else if(tab==='gallery')c.innerHTML=crud('GALLERY','Gallery / Video','gallery');
+  else if(tab==='testimonials')c.innerHTML=crud('TESTIMONIALS','Testimonials','testimonials');
+}
+function settings(){
+  const groups=[
+    {title:'Brand identity',keys:['siteName','siteTagline','logoText','logoSub','primaryColor','heroInterval']},
+    {title:'Contact & location',keys:['phone','email','address','whatsapp','mapEmbed','contactTitle','contactSubtitle']},
+    {title:'Social media',keys:['facebook','instagram','youtube','linkedin']},
+    {title:'About & section headings',keys:['aboutEyebrow','aboutTitle','aboutText','servicesTitle','productsTitle','plansTitle','galleryTitle','gallerySubtitle','footerText']}
+  ];
+  return `<div class="pageHead"><div><div class="eyebrow">MASTER SETTINGS</div><h1>Brand & Website Settings</h1><p>Everything here is reflected on the live website.</p></div><button class="btn gold" onclick="saveSettings()">Save All Changes</button></div>
+  <div class="panel logoPanel"><div><div class="logoPreview" id="logoPreview">${setting('siteLogo')?`<img src="${esc(setting('siteLogo'))}">`:'<span>A</span>'}</div></div><div class="logoInfo"><h3>Website Logo</h3><p>Upload your real logo. It will replace the temporary A mark in the top header and footer.</p><input id="logoFile" type="file" accept="image/*" onchange="previewLogo(event)"><div class="uploadQueue" id="settingsQueue"></div></div></div>
+  ${groups.map(g=>`<div class="panel"><div class="panelTitle"><h3>${g.title}</h3></div><div class="formGrid">${g.keys.map(k=>fieldSetting(k)).join('')}</div></div>`).join('')}
+  <div class="panel passwordPanel"><h3>Admin security</h3><div class="row"><input id="newPass" type="password" placeholder="New password — minimum 6 characters" style="flex:1"><button class="btn" onclick="changePassword()">Change Password</button></div></div>`;
+}
+function fieldSetting(k){
+  const labels={siteName:'Website Name',siteTagline:'Website Tagline',logoText:'Logo Text (fallback)',logoSub:'Logo Subtitle',primaryColor:'Primary Color',heroInterval:'Hero Slide Interval (ms)',phone:'Phone',email:'Email',address:'Address',whatsapp:'WhatsApp Number',mapEmbed:'Google Maps Embed URL / iframe src',contactTitle:'Contact Title',contactSubtitle:'Contact Subtitle',facebook:'Facebook URL',instagram:'Instagram URL',youtube:'YouTube URL',linkedin:'LinkedIn URL',aboutEyebrow:'About Eyebrow',aboutTitle:'About Title',aboutText:'About Text',servicesTitle:'Services Heading',productsTitle:'Products Heading',plansTitle:'Plans Heading',galleryTitle:'Gallery Heading',gallerySubtitle:'Gallery Subtitle',footerText:'Footer Text'};
+  const v=setting(k), area=['address','mapEmbed','aboutText','footerText','contactSubtitle'].includes(k);
+  return `<div class="field ${area?'full':''}"><label>${labels[k]||k}</label>${area?`<textarea id="set_${k}">${esc(v)}</textarea>`:`<input id="set_${k}" value="${esc(v)}" ${k==='heroInterval'?'type="number"':''}>`}${k==='mapEmbed'?'<small class="fieldHelp">Paste only the Google Maps Embed URL or the iframe src value.</small>':''}</div>`;
+}
+function setting(k){const x=(DB.settings||[]).find(r=>String(r.key)===String(k));return x?x.value:''}
+function previewLogo(e){const f=e.target.files?.[0];if(!f)return;const u=URL.createObjectURL(f);$('#logoPreview').innerHTML=`<img src="${u}">`}
+async function saveSettings(){
+  try{
+    const keys=[...document.querySelectorAll('[id^="set_"]')].map(x=>x.id.slice(4));
+    const items=keys.map(k=>({key:k,value:$('#set_'+k).value}));
+    const lf=$('#logoFile')?.files?.[0];
+    if(lf){
+      setSettingsUpload(lf.name,'Preparing logo…','work');
+      const name='LOGO_'+Date.now()+'_'+safeFileName(lf.name);
+      const url=await uploadAndGetUrl(lf,name,m=>setSettingsUpload(lf.name,m,'work'));
+      items.push({key:'siteLogo',value:url});
+    }
+    await post({action:'saveSettings',items});
+    await refresh('All website settings saved ✓');
+    renderTab('settings');
+  }catch(e){showToast('Save failed: '+e.message,'error')}
+}
+function setSettingsUpload(n,m,state='work'){const b=$('#settingsQueue');if(!b)return;b.innerHTML=`<div class="uploadRow ${state}"><span>${esc(n)}</span><span>${esc(m)}</span></div>`}
+async function changePassword(){
+  try{const p=$('#newPass').value;if(!p||p.length<6)return showToast('Minimum 6 characters','error');await post({action:'changePassword',newPassword:p});$('#newPass').value='';showToast('Password changed ✓')}catch(e){showToast(e.message,'error')}
+}
+const schemas={
+  hero:{sheet:'HERO',fields:[['imageUrl','Image URL / uploaded file','text'],['titleSmall','Small Heading','text'],['title1','Main Heading 1','text'],['title2','Main Heading 2','text'],['description','Description','textarea'],['button1','Button 1','text'],['button1Link','Button 1 Link','text'],['button2','Button 2','text'],['button2Link','Button 2 Link','text'],['sort','Order','number'],['active','Active','selectYESNO']]},
+  services:{sheet:'SERVICES',fields:[['icon','Icon / Emoji','text'],['name','Service Name','text'],['description','Description','text'],['sort','Order','number'],['active','Active','selectYESNO']]},
+  products:{sheet:'PRODUCTS',fields:[['name','Product Name','text'],['price','Price','text'],['imageUrl','Image URL / uploaded file','text'],['shortDescription','Short Description','text'],['description','Full Description','textarea'],['features','Features (use | between items)','textarea'],['category','Category','text'],['sort','Order','number'],['active','Active','selectYESNO']]},
+  plans:{sheet:'PLANS',fields:[['name','Plan Name','text'],['tagline','Tagline','text'],['price','Price','text'],['period','Period','text'],['color','Color','text'],['features','Features (use | between items)','textarea'],['sort','Order','number'],['active','Active','selectYESNO'],['buttonText','Button Text','text'],['buttonLink','Button Link','text']]},
+  gallery:{sheet:'GALLERY',fields:[['section','Section','text'],['type','Type','selectMedia'],['title','Title','text'],['mediaUrl','Media URL / uploaded file','text'],['thumbUrl','Thumbnail URL','text'],['sort','Order','number'],['active','Active','selectYESNO']]},
+  testimonials:{sheet:'TESTIMONIALS',fields:[['quote','Review / Quote','textarea'],['name','Customer Name','text'],['role','Customer Role','text'],['sort','Order','number'],['active','Active','selectYESNO']]}
+};
+function crud(type,title,key){
+  const rows=[...(DB[key]||[])].sort((a,b)=>(+a.sort||0)-(+b.sort||0));
+  return `<div class="pageHead"><div><div class="eyebrow">CONTENT MANAGER</div><h1>${title}</h1><p>Manage, publish, hide and reorder ${title.toLowerCase()}.</p></div><div class="headActions"><button class="btn gold" onclick="editItem('${key}','')">+ Add New</button>${key==='hero'||key==='gallery'?`<button class="btn" onclick="bulkUpload('${key}')">⇧ Bulk Upload</button>`:''}</div></div>
+  <div class="panel"><div class="list">${rows.length?rows.map(x=>itemRow(key,x)).join(''):'<div class="empty">No items yet.</div>'}</div></div>`;
+}
+function itemRow(key,x){
+  let image=x.imageUrl||x.mediaUrl||'';
+  const title=x.name||x.title||x.section||x.quote||'Untitled';
+  const desc=x.price||x.description||x.shortDescription||x.role||'';
+  const thumb=image&&String(x.type)!=='video'?`<img class="thumb" src="${esc(image)}" loading="lazy">`:String(x.type)==='video'?'<div class="thumb videoThumb">▶ VIDEO</div>':`<div class="thumb">${key==='testimonials'?'★':'+'}</div>`;
+  const live=String(x.active).toUpperCase()==='YES'?'<span class="pill on">LIVE</span>':'<span class="pill off">HIDDEN</span>';
+  return `<div class="item"><div>${thumb}</div><div><div class="itemMeta">${live}</div><h4>${esc(title)}</h4><p>${esc(desc)}</p></div><div class="itemActions"><button class="iconBtn" onclick='editItem("${key}","${esc(x.id)}")'>Edit</button><button class="iconBtn danger" onclick='removeItem("${key}","${esc(x.id)}")'>Delete</button></div></div>`;
+}
+function editItem(key,id){
+  const s=schemas[key], row=(DB[key]||[]).find(x=>String(x.id)===String(id))||{id:key.toUpperCase().slice(0,2)+(Date.now()%100000)};
+  $('#modal').innerHTML=`<div class="modalBox"><div class="modalHead"><div><div class="eyebrow">EDITOR</div><h2>${id?'Edit':'Add'} ${key}</h2></div><button class="close" onclick="closeModal()">×</button></div><input type="hidden" id="f_id" value="${esc(row.id)}"><div class="formGrid" id="editForm" style="margin-top:15px">${s.fields.map(([f,l,t])=>field(f,l,t,row[f]??'')).join('')}</div>${['hero','products','gallery'].includes(key)?uploadUI(key):''}<div class="saveBar"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn green" onclick="saveItem('${key}')">Save & Publish</button></div></div>`;
+  $('#modal').classList.add('show');
+}
+function field(f,l,t,v){
+  if(t==='textarea')return `<div class="field full"><label>${l}</label><textarea id="f_${f}">${esc(v)}</textarea></div>`;
+  if(t==='selectYESNO')return `<div class="field"><label>${l}</label><select id="f_${f}"><option ${String(v).toUpperCase()==='YES'?'selected':''}>YES</option><option ${String(v).toUpperCase()!=='YES'?'selected':''}>NO</option></select></div>`;
+  if(t==='selectMedia')return `<div class="field"><label>${l}</label><select id="f_${f}"><option ${v==='image'?'selected':''}>image</option><option ${v==='video'?'selected':''}>video</option></select></div>`;
+  return `<div class="field"><label>${l}</label><input id="f_${f}" type="${t==='number'?'number':'text'}" value="${esc(v)}"></div>`;
+}
+function uploadUI(key){
+  return `<div class="uploadBox" style="margin-top:15px"><b>Upload ${key==='gallery'?'image / video files':'image'}</b><br><small>Large images are compressed automatically. Gallery supports multiple files.</small><input id="fileInput" type="file" ${key==='gallery'?'multiple':''} accept="${key==='gallery'?'image/*,video/*':'image/*'}" onchange="previewFiles(event,'${key}')"><div class="previewGrid" id="previewGrid"></div><div class="uploadQueue" id="uploadQueue"></div></div>`;
+}
+function previewFiles(e,key){const box=$('#previewGrid');box.innerHTML='';[...e.target.files].forEach(f=>{const u=URL.createObjectURL(f);box.insertAdjacentHTML('beforeend',f.type.startsWith('video/')?`<video src="${u}" controls></video>`:`<img src="${u}">`)})}
+async function saveItem(key){
+  try{
+    const s=schemas[key],obj={id:$('#f_id').value};
+    s.fields.forEach(([f])=>obj[f]=$('#f_'+f)?.value||'');
+    const files=$('#fileInput')?.files;
+    if(files&&files.length){
+      if(key==='gallery'&&files.length>1)return doBulkUpload(key,files);
+      const f=files[0],name='UP_'+Date.now()+'_'+Math.random().toString(36).slice(2,8)+'_'+safeFileName(f.name);
+      setUploadStatus(f.name,'Preparing…','work');
+      const url=await uploadAndGetUrl(f,name,m=>setUploadStatus(f.name,m,'work'));
+      if(key==='gallery'){obj.mediaUrl=url;obj.thumbUrl=url;obj.type=f.type.startsWith('video/')?'video':'image'}
+      else obj.imageUrl=url;
+    }
+    await post({action:'saveRows',sheet:s.sheet,rows:[obj]});
+    await refresh('Saved & published ✓');closeModal();renderTab(key);
+  }catch(e){showToast('Save failed: '+e.message,'error')}
+}
+async function removeItem(key,id){
+  if(!confirm('Delete this item from the website?'))return;
+  try{await post({action:'deleteRow',sheet:schemas[key].sheet,id});await refresh('Item deleted ✓');renderTab(key)}catch(e){showToast('Delete failed: '+e.message,'error')}
+}
+function safeFileName(n){return String(n||'file').replace(/[^a-zA-Z0-9._-]/g,'_')}
+function setUploadStatus(name,msg,state='work'){
+  const box=$('#uploadQueue');if(!box)return;
+  const id='uq_'+btoa(unescape(encodeURIComponent(name))).replace(/[^a-zA-Z0-9]/g,'');
+  let el=document.getElementById(id);
+  if(!el){el=document.createElement('div');el.className='uploadRow';el.id=id;box.appendChild(el)}
+  el.className='uploadRow '+state;el.innerHTML=`<span class="uploadName">${esc(name)}</span><span class="uploadState">${esc(msg)}</span>`;
+}
+async function uploadAndGetUrl(file,name,onStatus){
+  const data=await prepareFile(file,onStatus);
+  onStatus?.('Uploading to Drive…');
+  await post({action:'uploadMedia',fileName:name,mimeType:(data.match(/^data:([^;]+);/)||[])[1]||file.type,data});
+  onStatus?.('Verifying upload…');
+  for(let i=0;i<18;i++){
+    await new Promise(r=>setTimeout(r,i===0?500:500));
+    try{const d=await jsonp(api()+'?action=mediaByName&name='+encodeURIComponent(name));if(d.ok){onStatus?.('Uploaded ✓','done');return d.url}}catch(e){}
+  }
+  onStatus?.('Upload verification failed','error');throw Error('Drive upload could not be verified');
+}
+async function bulkUpload(key,selectedFiles){
+  const accept=key==='hero'?'image/*':'image/*,video/*';
+  if(selectedFiles)return doBulkUpload(key,selectedFiles);
+  $('#modal').innerHTML=`<div class="modalBox"><div class="modalHead"><div><div class="eyebrow">MEDIA MANAGER</div><h2>Bulk Upload ${key}</h2></div><button class="close" onclick="closeModal()">×</button></div><p class="uploadHint">Select multiple files. Each file is compressed before it is sent to Drive.</p><div class="uploadBox"><input id="bulkFiles" type="file" multiple accept="${accept}"><div class="uploadQueue" id="uploadQueue"></div><div class="previewGrid" id="previewGrid"></div></div><div class="saveBar"><button class="btn" onclick="closeModal()">Cancel</button><button class="btn green" onclick="doBulkUpload('${key}')">Upload & Publish</button></div></div>`;
+  $('#modal').classList.add('show');$('#bulkFiles').onchange=e=>previewFiles(e,key);
+}
+async function doBulkUpload(key,passedFiles){
+  const input=$('#bulkFiles'),files=passedFiles?[...passedFiles]:(input?[...input.files]:[]);
+  if(!files.length)return showToast('Select files first','error');
+  const sheet=schemas[key].sheet;let order=(DB[key]||[]).length+1,cursor=0;const results=new Array(files.length);
+  async function worker(){
+    while(true){
+      const i=cursor++;if(i>=files.length)return;const f=files[i];
+      try{
+        setUploadStatus(f.name,'Preparing…','work');
+        const name='BULK_'+Date.now()+'_'+i+'_'+Math.random().toString(36).slice(2,7)+'_'+safeFileName(f.name);
+        results[i]={f,url:await uploadAndGetUrl(f,name,m=>setUploadStatus(f.name,m,'work'))};
+      }catch(e){results[i]={f,error:e.message};setUploadStatus(f.name,'Failed: '+e.message,'error')}
+    }
+  }
+  await Promise.all(Array.from({length:Math.min(3,files.length)},worker));
+  const rows=[];
+  results.forEach(r=>{
+    if(!r||r.error)return;
+    const f=r.f,base=f.name.replace(/\.[^.]+$/,'').replace(/[-_]+/g,' ');
+    const obj={id:key.toUpperCase().slice(0,2)+(Date.now()%100000)+Math.floor(Math.random()*9999),sort:order++,active:'YES'};
+    if(key==='hero')Object.assign(obj,{imageUrl:r.url,titleSmall:'LET’S GROW YOUR BRAND TOGETHER',title1:base,title2:'Powerful Results',description:'Creative advertising solutions for your business.',button1:'Explore Services',button1Link:'#services',button2:'Get a Free Quote',button2Link:'#contact'});
+    else Object.assign(obj,{section:f.type.startsWith('video/')?'Video Production':'New Gallery',type:f.type.startsWith('video/')?'video':'image',title:base,mediaUrl:r.url,thumbUrl:r.url});
+    rows.push(obj);
+  });
+  if(rows.length)await post({action:'saveRows',sheet,rows});
+  await refresh(`${rows.length} file${rows.length!==1?'s':''} uploaded & published`);
+  renderTab(key);if(rows.length===files.length)setTimeout(closeModal,450);
+}
+async function prepareFile(file,onStatus){
+  if(file.type.startsWith('image/')){
+    if(file.size<=160*1024){onStatus?.('Small image — direct upload ✓');return toData(file)}
+    onStatus?.('Compressing image…');return compressImage(file);
+  }
+  if(file.type.startsWith('video/')){
+    if(file.size<=600*1024){onStatus?.('Small video — direct upload ✓');return toData(file)}
+    onStatus?.('Compressing video…');return compressVideo(file);
+  }
+  return toData(file);
+}
 function toData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}
-async function prepareFile(file,onStatus){if(file.type.startsWith('image/')){if(file.size<=150*1024){onStatus?.('Direct upload — small image ✓');return toData(file)}onStatus?.('Compressing image…');return compressImage(file,onStatus)}if(file.type.startsWith('video/')){if(file.size<=500*1024){onStatus?.('Direct upload — small video ✓');return toData(file)}onStatus?.('Compressing video…');return compressVideo(file,onStatus)}return toData(file)}
-function compressImage(file,onStatus){return new Promise((resolve,reject)=>{const img=new Image(),r=new FileReader();r.onload=()=>{img.onload=()=>{let scale=Math.min(1,1600/Math.max(img.width,img.height)),q=.82,data='';for(let i=0;i<7;i++){const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));c.getContext('2d').drawImage(img,0,0,c.width,c.height);data=c.toDataURL('image/jpeg',q);if(data.length<=850000)break;q=Math.max(.35,q-.08);scale*=.82}onStatus?.('Image ready ✓');resolve(data)};img.onerror=reject;img.src=r.result};r.onerror=reject;r.readAsDataURL(file)})}
-function compressVideo(file,onStatus){return new Promise(async(resolve,reject)=>{try{if(!window.MediaRecorder||!HTMLCanvasElement.prototype.captureStream){resolve(await toData(file));return}const v=document.createElement('video');v.src=URL.createObjectURL(file);v.muted=true;v.playsInline=true;await new Promise((r,j)=>{v.onloadedmetadata=r;v.onerror=j});const max=640,scale=Math.min(1,max/Math.max(v.videoWidth,v.videoHeight));const c=document.createElement('canvas');c.width=Math.max(1,Math.round(v.videoWidth*scale));c.height=Math.max(1,Math.round(v.videoHeight*scale));const ctx=c.getContext('2d');const stream=c.captureStream(12);const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8')?'video/webm;codecs=vp8':'video/webm';const duration=Math.max(1,v.duration||1);const bits=Math.max(60000,Math.min(110000,(360*1024*8)/duration));const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:bits});const chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);rec.onstop=()=>{const blob=new Blob(chunks,{type:'video/webm'});const r=new FileReader();r.onload=()=>{onStatus?.('Video ready ✓');resolve(r.result)};r.onerror=reject;r.readAsDataURL(blob)};rec.start(400);const draw=()=>{if(v.ended||v.paused&&v.currentTime>=duration-0.05){rec.stop();return}ctx.drawImage(v,0,0,c.width,c.height);requestAnimationFrame(draw)};await v.play();draw()}catch(e){reject(e)}})}
-function closeModal(){$('#modal').classList.remove('show');$('#modal').innerHTML='';window._viewer=null}
-window.addEventListener('beforeunload',()=>{token=''});
+function compressImage(file){
+  return new Promise((resolve,reject)=>{
+    const img=new Image(),r=new FileReader();
+    r.onload=()=>{img.onload=()=>{
+      let max=Math.min(1800,Math.max(img.width,img.height)),scale=Math.min(1,max/Math.max(img.width,img.height)),q=.8,data='';
+      for(let pass=0;pass<6;pass++){
+        const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));
+        c.getContext('2d',{alpha:false}).drawImage(img,0,0,c.width,c.height);data=c.toDataURL('image/jpeg',q);
+        if((data.length*0.75)<=280*1024)break;q=Math.max(.38,q-.08);scale*=.86;
+      } resolve(data);
+    };img.onerror=reject;img.src=r.result};r.onerror=reject;r.readAsDataURL(file);
+  })
+}
+function compressVideo(file){
+  return new Promise(async resolve=>{
+    if(!('MediaRecorder' in window)){resolve(await toData(file));return}
+    const v=document.createElement('video');v.src=URL.createObjectURL(file);v.muted=true;v.playsInline=true;
+    try{await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=rej});const duration=Math.max(1,v.duration||1),c=document.createElement('canvas'),scale=Math.min(1,720/Math.max(v.videoWidth,v.videoHeight));c.width=Math.max(1,Math.round(v.videoWidth*scale));c.height=Math.max(1,Math.round(v.videoHeight*scale));const ctx=c.getContext('2d'),stream=c.captureStream(15),mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8')?'video/webm;codecs=vp8':'video/webm',targetBits=Math.max(70000,Math.min(240000,(650*1024*8/duration)));const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:targetBits}),chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);rec.onstop=()=>{const blob=new Blob(chunks,{type:mime}),r=new FileReader();r.onload=()=>resolve(r.result);r.readAsDataURL(blob)};rec.start(500);const draw=()=>{if(v.ended){rec.stop();return}ctx.drawImage(v,0,0,c.width,c.height);requestAnimationFrame(draw)};await v.play();draw()}catch(e){resolve(await toData(file))}
+  })
+}
+function closeModal(){$('#modal').classList.remove('show');$('#modal').innerHTML=''}
+if(token)start();

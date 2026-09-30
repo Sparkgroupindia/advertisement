@@ -1,43 +1,50 @@
-# VIGYAPAN — Full Professional Website + CMS
+# VIGYAPAN Professional Website CMS — Master Edition
 
-## Files
-- `index.html` — public website
-- `admin.html` — admin panel on the same GitHub Pages domain
-- `app.js`, `style.css` — public website
-- `admin.js`, `admin.css` — CMS
-- `config.js` — Apps Script `/exec` URL
-- `Code.gs` — Google Apps Script backend (paste into Apps Script only)
-- `assets/` — ready demo media; replace everything from Admin after setup if desired
+## Architecture
+- GitHub Pages: public website + admin panel on the same domain
+- `index.html`: public website
+- `admin.html`: master admin panel
+- Google Apps Script: API/CMS
+- Google Sheet: content database
+- Google Drive: uploaded media
 
-## Setup
-1. Open the Google Sheet used for the CMS.
-2. Extensions → Apps Script.
-3. Replace the complete `Code.gs` with the `Code.gs` in this ZIP.
-4. Run `setupVigyapan()` once and approve permissions.
-5. Deploy → New deployment → Web app → Execute as Me → Anyone.
-6. Keep the `/exec` URL in `config.js`.
-7. Upload all GitHub files/folders except `Code.gs`.
-8. Enable GitHub Pages.
+## Main improvements
+- Reliable admin save/delete/upload flow using Apps Script POST without browser preflight problems.
+- Logo upload from Admin > Brand & Settings; logo appears in public header and footer.
+- Google Maps embed URL controlled from Admin > Brand & Settings.
+- Testimonials are now CMS-managed through a `TESTIMONIALS` sheet.
+- Gallery image/video filters and lightbox navigation.
+- Clickable service cards with detail modal + WhatsApp enquiry.
+- Floating WhatsApp button and improved contact controls.
+- Responsive mobile-first public website and redesigned master admin dashboard.
+- Existing HERO, SERVICES, PRODUCTS, PLANS and GALLERY sheets remain compatible.
+- Existing content is preserved; setup adds missing CMS structures instead of replacing rows.
 
-## URLs
-Public: `https://YOUR-USER.github.io/YOUR-REPO/`
-Admin: `https://YOUR-USER.github.io/YOUR-REPO/admin.html`
+## One-time Apps Script update
+1. Open the Google Apps Script project connected to the CMS Sheet.
+2. Replace `Code.gs` with this package's `Code.gs`.
+3. Save.
+4. Run `setupVigyapan()` once from the Apps Script editor.
+5. Approve permissions if Google asks.
+6. Deploy > Manage deployments > Edit the existing Web App deployment.
+7. Keep Execute as: Me, and Who has access: Anyone.
+8. Deploy the new version.
+9. Keep the same `/exec` URL in `config.js` unless Google generated a new deployment URL.
 
-## Admin login
-First setup password: `admin123`.
-The admin token is kept only in page memory. Refreshing `admin.html` returns to the login page.
+## GitHub Pages update
+Upload/replace these files in the existing `advertisement` repository:
+- `index.html`
+- `app.js`
+- `style.css`
+- `admin.html`
+- `admin.js`
+- `admin.css`
+- `config.js`
 
-## Media
-- Images <= 150 KB: direct upload, no compression.
-- Images > 150 KB: browser compression before upload.
-- Videos <= 500 KB: direct upload, no compression.
-- Videos > 500 KB: browser WebM compression when supported.
-- Up to 4 media files upload in parallel.
-- Each file shows Preparing / Compressing / Uploading / Uploaded / Failed status.
-- Gallery uploads are stored in Drive subfolders by gallery section.
+Do not remove the existing `assets` folder or other repository files if they are present.
 
-## Gallery
-Admin Gallery / Video is folder based. Create a folder name and upload multiple images/videos. Public visitors see equal-size folder cards. Clicking a folder opens a viewer with previous/next navigation, image zoom and video controls.
+## Admin
+Open:
+`https://sparkgroupindia.github.io/advertisement/admin.html`
 
-## Live update
-The public website checks the CMS version every 5 seconds. It only downloads the full CMS data when the version changes. A built-in fallback demo keeps the public page visible immediately even if the API is slow or temporarily unavailable.
+First setup default password remains `admin123` only if the Sheet is being initialized for the first time. Change it from Admin > Brand & Settings after login.
