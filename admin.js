@@ -93,12 +93,49 @@ function safeFileName(n){return String(n||'file').replace(/[^a-zA-Z0-9._-]/g,'_'
 function setUploadStatus(name,msg,state='work',boxId='uploadQueue'){const box=document.getElementById(boxId);if(!box)return;const id='uq_'+Math.abs(hashCode(name));let el=document.getElementById(id);if(!el){el=document.createElement('div');el.className='uploadRow';el.id=id;box.appendChild(el)}el.className='uploadRow '+state;el.innerHTML=`<span class="uploadName">${esc(name)}</span><span class="uploadState">${esc(msg)}</span>`}
 function hashCode(s){let h=0;for(let i=0;i<String(s).length;i++)h=((h<<5)-h)+String(s).charCodeAt(i)|0;return h}
 function extractDriveId(u){const s=String(u||'');let m=s.match(/[?&]id=([\w-]+)/);if(m)return m[1];m=s.match(/\/d\/([\w-]+)/);return m?m[1]:''}
-async function prepareFile(file,onStatus){if(file.type.startsWith('image/')){if(file.size<=100*1024){onStatus?.('Ready to upload ✓');return toData(file)}onStatus?.('Compressing image…');return compressImage(file)}if(file.type.startsWith('video/')){if(file.size<=500*1024){onStatus?.('Ready to upload ✓');return toData(file)}onStatus?.('Compressing video…');return compressVideo(file)}return toData(file)}
-function toData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file)})}
-function compressImage(file){return new Promise((resolve,reject)=>{const img=new Image();const r=new FileReader();r.onload=()=>{img.onload=()=>{let max=1600,scale=Math.min(1,max/Math.max(img.width,img.height)),q=.82,data='';for(let pass=0;pass<8;pass++){const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));const x=c.getContext('2d',{alpha:false});x.drawImage(img,0,0,c.width,c.height);data=c.toDataURL('image/jpeg',q);if(data.length<=136000)break;q=Math.max(.35,q-.07);scale*=.82}resolve(data)};img.onerror=()=>reject(Error('Could not read image'));img.src=r.result};r.onerror=()=>reject(Error('Could not read file'));r.readAsDataURL(file)})}
-function compressVideo(file){return new Promise(async resolve=>{if(!('MediaRecorder' in window)){resolve(await toData(file));return}try{const v=document.createElement('video');v.src=URL.createObjectURL(file);v.muted=true;v.playsInline=true;await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=rej});const duration=Math.max(1,v.duration||1),c=document.createElement('canvas'),scale=Math.min(1,640/Math.max(v.videoWidth,v.videoHeight));c.width=Math.max(1,Math.round(v.videoWidth*scale));c.height=Math.max(1,Math.round(v.videoHeight*scale));const ctx=c.getContext('2d'),stream=c.captureStream(15),mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8')?'video/webm;codecs=vp8':'video/webm',targetBits=Math.max(70000,Math.min(180000,(450*1024*8/duration))),rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:targetBits}),chunks=[];rec.ondataavailable=e=>e.data.size&&chunks.push(e.data);rec.onstop=()=>{const blob=new Blob(chunks,{type:mime}),r=new FileReader();r.onload=()=>resolve(r.result);r.readAsDataURL(blob)};rec.start(500);const draw=()=>{if(v.ended){rec.stop();return}ctx.drawImage(v,0,0,c.width,c.height);requestAnimationFrame(draw)};await v.play();draw()}catch(e){resolve(await toData(file))}})}
+async function prepareFile(file,onStatus){
+  const MAX_INPUT=10*1024*1024;
+  if(file.size>MAX_INPUT)throw Error('Maximum file size is 10 MB');
+  if(file.type.startsWith('image/')){
+    if(file.size<=100*1024){onStatus?.('Ready to upload ✓');return toData(file)}
+    onStatus?.('Compressing image…');return compressImage(file)
+  }
+  if(file.type.startsWith('video/')){
+    if(file.size<=1024*1024){onStatus?.('Ready to upload ✓');return toData(file)}
+    onStatus?.('Compressing video to ≤500 KB…');return compressVideo(file,onStatus)
+  }
+  if(file.size>1024*1024)throw Error('Files above 1 MB must be images or videos');
+  return toData(file)
+}
+function toData(file){return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result);r.onerror=()=>rej(Error('Could not read file'));r.readAsDataURL(file)})}
+function compressImage(file){return new Promise((resolve,reject)=>{const img=new Image();const r=new FileReader();r.onload=()=>{img.onload=()=>{let max=1600,scale=Math.min(1,max/Math.max(img.width,img.height)),q=.82,data='';for(let pass=0;pass<10;pass++){const c=document.createElement('canvas');c.width=Math.max(1,Math.round(img.width*scale));c.height=Math.max(1,Math.round(img.height*scale));const x=c.getContext('2d',{alpha:false});x.drawImage(img,0,0,c.width,c.height);data=c.toDataURL('image/jpeg',q);if(data.length<=136000)break;q=Math.max(.3,q-.07);scale*=.82}resolve(data)};img.onerror=()=>reject(Error('Could not read image'));img.src=r.result};r.onerror=()=>reject(Error('Could not read file'));r.readAsDataURL(file)})}
+function compressVideo(file,onStatus){return new Promise(async (resolve,reject)=>{
+  if(!('MediaRecorder' in window))return reject(Error('This browser cannot compress video. Please use Chrome or Edge.'));
+  const url=URL.createObjectURL(file),v=document.createElement('video');v.src=url;v.muted=true;v.playsInline=true;v.preload='auto';
+  try{
+    await new Promise((res,rej)=>{v.onloadedmetadata=res;v.onerror=()=>rej(Error('Could not read video'))});
+    const duration=Math.max(0.5,Math.min(v.duration||1,600));
+    const maxSide=480,scale=Math.min(1,maxSide/Math.max(v.videoWidth||480,v.videoHeight||480));
+    const w=Math.max(2,Math.round((v.videoWidth||480)*scale/2)*2),h=Math.max(2,Math.round((v.videoHeight||480)*scale/2)*2);
+    const c=document.createElement('canvas');c.width=w;c.height=h;const ctx=c.getContext('2d');
+    const stream=c.captureStream(12);
+    const mime=MediaRecorder.isTypeSupported('video/webm;codecs=vp8')?'video/webm;codecs=vp8':(MediaRecorder.isTypeSupported('video/webm')?'video/webm':'');
+    if(!mime)throw Error('WebM video compression is not supported in this browser');
+    // Aim for ~430 KB so container overhead stays below the 500 KB limit.
+    const targetBits=Math.max(24000,Math.min(120000,Math.floor((430*1024*8)/duration)));
+    const rec=new MediaRecorder(stream,{mimeType:mime,videoBitsPerSecond:targetBits});
+    const chunks=[];let stopped=false;
+    rec.ondataavailable=e=>{if(e.data&&e.data.size)chunks.push(e.data)};
+    const done=()=>{if(stopped)return;stopped=true;try{stream.getTracks().forEach(t=>t.stop())}catch(e){}URL.revokeObjectURL(url)};
+    rec.onerror=()=>{done();reject(Error('Video compression failed'))};
+    rec.onstop=()=>{done();const blob=new Blob(chunks,{type:'video/webm'});if(blob.size>500*1024){reject(Error('Compressed video is still above 500 KB. Try a shorter video.'));return}onStatus?.('Compressed ✓');const r=new FileReader();r.onload=()=>resolve(r.result);r.onerror=()=>reject(Error('Could not read compressed video'));r.readAsDataURL(blob)};
+    rec.start(250);
+    await v.play();
+    const draw=()=>{if(v.ended||v.currentTime>=duration){try{rec.stop()}catch(e){}return}ctx.drawImage(v,0,0,w,h);requestAnimationFrame(draw)};draw();
+  }catch(e){try{URL.revokeObjectURL(url)}catch(x){}reject(e)}
+})}
 
-async function uploadAndGetUrl(file,name,onStatus,replaceFileId=''){const data=await prepareFile(file,onStatus);onStatus?.('Uploading to Drive…');await post({action:'uploadMedia',fileName:name,mimeType:(data.match(/^data:([^;]+);/)||[])[1]||file.type,data,replaceFileId});onStatus?.('Verifying upload…');for(let i=0;i<18;i++){try{const d=await jsonp(api()+'?action=mediaByName&name='+encodeURIComponent(name));if(d.ok){onStatus?.('Uploaded ✓');return d}}catch(e){}await new Promise(r=>setTimeout(r,300))}onStatus?.('Upload failed','error');throw Error('Upload verification failed')}
+async function uploadAndGetUrl(file,name,onStatus,replaceFileId=''){const data=await prepareFile(file,onStatus);const uploadId='U'+Date.now()+Math.random().toString(36).slice(2,10);const dataMime=(data.match(/^data:([^;]+);/)||[])[1]||file.type;let uploadName=name;if(dataMime==='video/webm'&&!/\.webm$/i.test(uploadName))uploadName=uploadName.replace(/\.[^.]+$/,'')+'.webm';onStatus?.('Uploading to Drive…');await post({action:'uploadMedia',uploadId,fileName:uploadName,mimeType:dataMime,data,replaceFileId});onStatus?.('Verifying upload…');for(let i=0;i<30;i++){try{const d=await jsonp(api()+'?action=uploadStatus&uploadId='+encodeURIComponent(uploadId));if(d.ok){onStatus?.('Uploaded ✓');return d}}catch(e){}await new Promise(r=>setTimeout(r,250))}onStatus?.('Upload failed','error');throw Error('Upload verification failed — Drive did not confirm the file')}
 
 async function uploadSingle(key){
   const input=$('#fileInput');const f=input?.files?.[0];if(!f)return showToast('First select a file');
