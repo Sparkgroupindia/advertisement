@@ -26,8 +26,7 @@ async function waitForVersion(oldVersion,tries=16){
 
 async function loadBrand(){
   try{const d=await jsonp(api()+'?action=brand');if(d?.logoUrl){
-    ['loginBrand','sideBrandImg'].forEach(id=>{const e=document.getElementById(id);if(e){e.src=d.logoUrl;e.classList.add('show')}});
-    const t=document.getElementById('loginBrandText');if(t)t.textContent=d.siteName||'VIGYAPAN';
+    ['loginBrand','sideBrandImg','mobileBrandImg'].forEach(id=>{const e=document.getElementById(id);if(e){e.src=d.logoUrl;e.classList.add('show')}});
   }}catch(e){}
 }
 async function login(){
@@ -45,7 +44,7 @@ async function start(){
   }catch(e){token='';$('#login').classList.remove('hidden');$('#app').classList.add('hidden');showToast('Session expired. Please login again.')}
 }
 async function load(){const d=await jsonp(api()+'?action=public');if(!d||!d.version)throw Error('CMS data unavailable');DB=d}
-function applyAdminBrand(){const url=setting('logoUrl');if(url){['sideBrandImg','loginBrand'].forEach(id=>{const e=document.getElementById(id);if(e){e.src=url;e.classList.add('show')}})}}
+function applyAdminBrand(){const url=setting('logoUrl');if(url){['sideBrandImg','loginBrand','mobileBrandImg'].forEach(id=>{const e=document.getElementById(id);if(e){e.src=url;e.classList.add('show')}})}}
 function bindTabs(){document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));b.classList.add('active');renderTab(b.dataset.tab);if(innerWidth<800)toggleSide()})}
 function toggleSide(){document.querySelector('aside').classList.toggle('open')}
 function renderDashboard(){renderTab('dashboard')}
